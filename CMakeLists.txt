@@ -11,15 +11,23 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 # --- Core library (pure C++, no Python dependency) ---
-add_library(ope_core STATIC src/black_scholes.cpp)
+add_library(ope_core STATIC
+    src/black_scholes.cpp
+    src/binomial.cpp
+    src/monte_carlo.cpp)
 target_include_directories(ope_core PUBLIC include)
 set_target_properties(ope_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# --- C++ test executable ---
+# --- C++ test executables ---
 add_executable(test_black_scholes tests/test_black_scholes.cpp)
 target_link_libraries(test_black_scholes PRIVATE ope_core)
+
+add_executable(test_convergence tests/test_convergence.cpp)
+target_link_libraries(test_convergence PRIVATE ope_core)
+
 enable_testing()
 add_test(NAME black_scholes COMMAND test_black_scholes)
+add_test(NAME convergence COMMAND test_convergence)
 
 # --- Python module via pybind11 (optional: only if pybind11 is found) ---
 find_package(pybind11 CONFIG QUIET)

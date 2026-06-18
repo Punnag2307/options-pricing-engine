@@ -1,6 +1,8 @@
 #include <pybind11/pybind11.h>
 
+#include "ope/binomial.hpp"
 #include "ope/black_scholes.hpp"
+#include "ope/monte_carlo.hpp"
 
 namespace py = pybind11;
 
@@ -10,6 +12,10 @@ PYBIND11_MODULE(ope, m) {
     py::enum_<ope::OptionType>(m, "OptionType")
         .value("Call", ope::OptionType::Call)
         .value("Put", ope::OptionType::Put);
+
+    py::enum_<ope::Exercise>(m, "Exercise")
+        .value("European", ope::Exercise::European)
+        .value("American", ope::Exercise::American);
 
     py::class_<ope::BSInputs>(m, "BSInputs")
         .def(py::init<>())
@@ -47,4 +53,21 @@ PYBIND11_MODULE(ope, m) {
 
     m.def("black_scholes", &ope::black_scholes, py::arg("inputs"),
           "Closed-form Black-Scholes price and Greeks for a European option.");
+
+    py::class_<ope::MCResult>(m, "MCResult")
+        .def_readonly("price", &ope::MCResult::price)
+        .def_readonly("std_error", &ope::MCResult::std_error)
+        .def("__repr__", [](const ope::MCResult& r) {
+            return "<MCResult price=" + std::to_string(r.price) +
+                   " std_error=" + std::to_string(r.std_error) + ">";
+        });
+
+    m.def("binomial_price", &ope::binomial_price, py::arg("inputs"),
+          py::arg("steps"), py::arg("exercise") = ope::Exercise::European,
+          "Cox-Ross-Rubinstein binomial tree price (European or American).");
+
+    m.def("monte_carlo_price", &ope::monte_carlo_price, py::arg("inputs"),
+          py::arg("num_paths"), py::arg("antithetic") = true,
+          py::arg("seed") = 42UL,
+          "Monte Carlo price (European) with optional antithetic variates.");
 }
