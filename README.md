@@ -1,5 +1,7 @@
 # Options Pricing Engine
 
+![CI](https://github.com/Punnag2307/options-pricing-engine/actions/workflows/ci.yml/badge.svg)
+
 A C++ options pricing engine with a Python interface. The numerical core is
 written in C++ for speed and numerical control; a thin
 [pybind11](https://github.com/pybind/pybind11) layer exposes it to Python so
@@ -19,7 +21,7 @@ layer).
 | Three-method convergence test | done |
 | Implied-volatility solver (safeguarded Newton) | done |
 | Latency benchmark | done |
-| CI (GitHub Actions) | planned |
+| CI (GitHub Actions, Linux + macOS) | done |
 | Volatility-surface plots | planned |
 
 ## The model
