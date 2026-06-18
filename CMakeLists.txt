@@ -14,7 +14,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 add_library(ope_core STATIC
     src/black_scholes.cpp
     src/binomial.cpp
-    src/monte_carlo.cpp)
+    src/monte_carlo.cpp
+    src/implied_vol.cpp)
 target_include_directories(ope_core PUBLIC include)
 set_target_properties(ope_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -25,9 +26,17 @@ target_link_libraries(test_black_scholes PRIVATE ope_core)
 add_executable(test_convergence tests/test_convergence.cpp)
 target_link_libraries(test_convergence PRIVATE ope_core)
 
+add_executable(test_implied_vol tests/test_implied_vol.cpp)
+target_link_libraries(test_implied_vol PRIVATE ope_core)
+
 enable_testing()
 add_test(NAME black_scholes COMMAND test_black_scholes)
 add_test(NAME convergence COMMAND test_convergence)
+add_test(NAME implied_vol COMMAND test_implied_vol)
+
+# --- Benchmark (built, not run as a test; timings vary by machine) ---
+add_executable(benchmark bench/benchmark.cpp)
+target_link_libraries(benchmark PRIVATE ope_core)
 
 # --- Python module via pybind11 (optional: only if pybind11 is found) ---
 find_package(pybind11 CONFIG QUIET)

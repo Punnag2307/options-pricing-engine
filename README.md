@@ -17,8 +17,10 @@ layer).
 | Binomial tree pricer (European + American) | done |
 | Monte Carlo pricer (antithetic variance reduction) | done |
 | Three-method convergence test | done |
-| Implied-volatility solver | planned |
-| Latency benchmarks + vol-surface plots | planned |
+| Implied-volatility solver (safeguarded Newton) | done |
+| Latency benchmark | done |
+| CI (GitHub Actions) | planned |
+| Volatility-surface plots | planned |
 
 ## The model
 
@@ -61,6 +63,35 @@ an American put is worth strictly more than the European put (the early-exercise
 premium), while an American call on a non-dividend stock equals the European
 call.
 
+## Implied volatility
+
+Given a market price, the engine solves for the volatility that reproduces it
+under Black-Scholes. The solver is Newton-Raphson driven by vega, but
+safeguarded: at every step it keeps the root inside a no-arbitrage bracket and
+falls back to a bisection step whenever a Newton step would jump outside that
+bracket or vega is too small to trust (which happens deep in or out of the
+money, exactly where naive Newton-Raphson diverges). Prices below intrinsic
+value are rejected as having no solution. A round-trip test recovers the input
+volatility across a grid of strikes and vols to better than `1e-6`, typically
+in three or four iterations.
+
+## Performance
+
+`bench/benchmark.cpp` times each pricer. Numbers are machine-specific; run it
+yourself with `./build/benchmark`. As a rough reference on a laptop (Release,
+`-O3`, single thread):
+
+```
+Black-Scholes price + 5 Greeks :   ~50 ns/call   (tens of millions/sec)
+Implied volatility solve       :  ~370 ns/call
+Binomial tree (American, 1000) :   tens of ms/call
+Monte Carlo (1,000,000 paths)  :   tens of ms
+```
+
+The analytical closed form prices an option and all five Greeks in roughly the
+time of a few dozen floating-point operations, which is what makes it suitable
+for real-time use.
+
 ## Layout
 
 ```
@@ -68,13 +99,16 @@ include/ope/types.hpp           shared types (inputs, option type, exercise styl
 include/ope/black_scholes.hpp   closed-form interface + Greeks
 include/ope/binomial.hpp        binomial tree interface
 include/ope/monte_carlo.hpp     Monte Carlo interface
+include/ope/implied_vol.hpp     implied-volatility solver interface
 src/                            implementations
 bindings/bindings.cpp           pybind11 module definition
+bench/benchmark.cpp             latency benchmark for each pricer
 tests/test_black_scholes.cpp    closed-form references + put-call parity
 tests/test_convergence.cpp      tree/MC convergence + American-option checks
+tests/test_implied_vol.cpp      implied-vol round-trip + no-solution edge case
 python/validate.py              cross-check vs independent SciPy reference
 python/convergence.py           generates the convergence chart above
-CMakeLists.txt                  build for lib, tests, and Python module
+CMakeLists.txt                  build for lib, tests, benchmark, Python module
 ```
 
 ## Build
@@ -111,10 +145,16 @@ print(ope.binomial_price(inp, steps=1000, exercise=ope.Exercise.American))
 # Monte Carlo with standard error
 mc = ope.monte_carlo_price(inp, num_paths=1_000_000)
 print(mc.price, mc.std_error)
+
+# Implied volatility from a market price
+price = ope.black_scholes(inp).price
+iv = ope.implied_vol(inp, price)
+print(iv.vol, iv.iterations, iv.converged)
 ```
 
-Regenerate the convergence chart with:
+Regenerate the convergence chart, and run the benchmark, with:
 
 ```bash
 PYTHONPATH=build python python/convergence.py
+./build/benchmark
 ```

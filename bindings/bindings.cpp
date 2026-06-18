@@ -2,6 +2,7 @@
 
 #include "ope/binomial.hpp"
 #include "ope/black_scholes.hpp"
+#include "ope/implied_vol.hpp"
 #include "ope/monte_carlo.hpp"
 
 namespace py = pybind11;
@@ -70,4 +71,18 @@ PYBIND11_MODULE(ope, m) {
           py::arg("num_paths"), py::arg("antithetic") = true,
           py::arg("seed") = 42UL,
           "Monte Carlo price (European) with optional antithetic variates.");
+
+    py::class_<ope::IVResult>(m, "IVResult")
+        .def_readonly("vol", &ope::IVResult::vol)
+        .def_readonly("iterations", &ope::IVResult::iterations)
+        .def_readonly("converged", &ope::IVResult::converged)
+        .def("__repr__", [](const ope::IVResult& r) {
+            return "<IVResult vol=" + std::to_string(r.vol) +
+                   " iterations=" + std::to_string(r.iterations) +
+                   " converged=" + std::string(r.converged ? "True" : "False") + ">";
+        });
+
+    m.def("implied_vol", &ope::implied_vol, py::arg("inputs"),
+          py::arg("market_price"), py::arg("tol") = 1e-8, py::arg("max_iter") = 100,
+          "Solve for Black-Scholes implied volatility (safeguarded Newton).");
 }
