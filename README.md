@@ -77,20 +77,26 @@ in three or four iterations.
 
 ## Performance
 
-`bench/benchmark.cpp` times each pricer. Numbers are machine-specific; run it
-yourself with `./build/benchmark`. As a rough reference on a laptop (Release,
-`-O3`, single thread):
+`bench/benchmark.cpp` times each pricer over a book of 4,096 *varied* options
+(random spot/strike/vol/maturity, mixed calls and puts) so the figures are not
+flattered by pricing one constant input repeatedly — which would hand the CPU
+perfect branch prediction and unrealistically low timings. Numbers are
+amortized, single-thread, hot-cache; run it yourself with `./build/benchmark`.
+
+As a rough reference (Release, `-O3`):
 
 ```
-Black-Scholes price + 5 Greeks :   ~50 ns/call   (tens of millions/sec)
-Implied volatility solve       :  ~370 ns/call
-Binomial tree (American, 1000) :   tens of ms/call
+Black-Scholes price + 5 Greeks :  ~100 ns/call
+Implied volatility solve       :    ~1 us/call
+Binomial tree (American, 1000) :   tens of ms/call  (scales as O(steps^2))
 Monte Carlo (1,000,000 paths)  :   tens of ms
 ```
 
-The analytical closed form prices an option and all five Greeks in roughly the
-time of a few dozen floating-point operations, which is what makes it suitable
-for real-time use.
+Two caveats, stated so the numbers stay honest: these measure the C++ core, not
+the Python binding (the pybind11 boundary costs far more per call, so batch to
+amortize it); and at tens of nanoseconds per call a single clock read costs as
+much as the operation, so the figure is a mean over a large batch rather than
+per-call percentiles.
 
 ## Layout
 
