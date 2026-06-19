@@ -3,6 +3,7 @@
 #include "ope/binomial.hpp"
 #include "ope/black_scholes.hpp"
 #include "ope/implied_vol.hpp"
+#include "ope/jump_diffusion.hpp"
 #include "ope/monte_carlo.hpp"
 
 namespace py = pybind11;
@@ -85,4 +86,17 @@ PYBIND11_MODULE(ope, m) {
     m.def("implied_vol", &ope::implied_vol, py::arg("inputs"),
           py::arg("market_price"), py::arg("tol") = 1e-8, py::arg("max_iter") = 100,
           "Solve for Black-Scholes implied volatility (safeguarded Newton).");
+
+    py::class_<ope::JumpParams>(m, "JumpParams")
+        .def(py::init([](double lambda, double mu_j, double delta) {
+                 return ope::JumpParams{lambda, mu_j, delta};
+             }),
+             py::arg("lambda_"), py::arg("mu_j"), py::arg("delta"))
+        .def_readwrite("lambda_", &ope::JumpParams::lambda)
+        .def_readwrite("mu_j", &ope::JumpParams::mu_j)
+        .def_readwrite("delta", &ope::JumpParams::delta);
+
+    m.def("merton_jump_price", &ope::merton_jump_price, py::arg("inputs"),
+          py::arg("jump_params"), py::arg("max_terms") = 60,
+          "Merton jump-diffusion price for a European option.");
 }

@@ -21,8 +21,10 @@ layer).
 | Three-method convergence test | done |
 | Implied-volatility solver (safeguarded Newton) | done |
 | Latency benchmark | done |
+| Google Benchmark suite (optional) | done |
 | CI (GitHub Actions, Linux + macOS) | done |
-| Volatility-surface plots | planned |
+| Merton jump-diffusion model | done |
+| Implied-volatility surface | done |
 
 ## The model
 
@@ -77,13 +79,31 @@ value are rejected as having no solution. A round-trip test recovers the input
 volatility across a grid of strikes and vols to better than `1e-6`, typically
 in three or four iterations.
 
+## Volatility surface
+
+Black-Scholes assumes a single, constant volatility — but real option markets
+price in a *smile*: implied vol varies with strike and maturity. To reproduce
+that, the engine prices an option chain under **Merton jump-diffusion** (a
+Poisson-weighted sum of Black-Scholes prices; with downward, fat-tailed jumps,
+as in equities) and then recovers the Black-Scholes implied vol of each quote
+with the solver above. The result is the classic surface — a skew across
+strikes that flattens as maturity grows:
+
+![Implied-volatility surface](docs/vol_surface.png)
+
+This is the bridge from "I can evaluate a formula" to "I understand what the
+formula is for": the jump model collapses to Black-Scholes when jumps are
+switched off (a unit test checks this), and switching them on produces a smile
+that plain Black-Scholes cannot (another test confirms wing vol exceeds
+at-the-money vol).
+
 ## Performance
 
 `bench/benchmark.cpp` times each pricer over a book of 4,096 *varied* options
 (random spot/strike/vol/maturity, mixed calls and puts) so the figures are not
 flattered by pricing one constant input repeatedly — which would hand the CPU
 perfect branch prediction and unrealistically low timings. Numbers are
-amortized, single-thread, hot-cache; run it yourself with `./build/benchmark`.
+amortized, single-thread, hot-cache; run it yourself with `./build/bench`.
 
 As a rough reference (Release, `-O3`):
 
@@ -100,6 +120,17 @@ amortize it); and at tens of nanoseconds per call a single clock read costs as
 much as the operation, so the figure is a mean over a large batch rather than
 per-call percentiles.
 
+For statistically rigorous numbers there is an optional Google Benchmark suite
+(automatic warmup, repetition statistics, and guards against the compiler
+eliding work). It is off by default to keep the normal build dependency-free;
+enable it with:
+
+```bash
+cmake -S . -B build -DCMAKE_PREFIX_PATH="$(python -m pybind11 --cmakedir)" -DBUILD_GBENCH=ON
+cmake --build build -j
+./build/bench_gb --benchmark_repetitions=10 --benchmark_report_aggregates_only=true
+```
+
 ## Layout
 
 ```
@@ -108,14 +139,18 @@ include/ope/black_scholes.hpp   closed-form interface + Greeks
 include/ope/binomial.hpp        binomial tree interface
 include/ope/monte_carlo.hpp     Monte Carlo interface
 include/ope/implied_vol.hpp     implied-volatility solver interface
+include/ope/jump_diffusion.hpp  Merton jump-diffusion interface
 src/                            implementations
 bindings/bindings.cpp           pybind11 module definition
-bench/benchmark.cpp             latency benchmark for each pricer
+bench/benchmark.cpp             latency benchmark (hand-rolled, no deps) -> 'bench'
+bench/benchmark_gb.cpp          optional Google Benchmark suite -> 'bench_gb'
 tests/test_black_scholes.cpp    closed-form references + put-call parity
 tests/test_convergence.cpp      tree/MC convergence + American-option checks
 tests/test_implied_vol.cpp      implied-vol round-trip + no-solution edge case
+tests/test_jump_diffusion.cpp   jump model reduces to BS; produces a smile
 python/validate.py              cross-check vs independent SciPy reference
-python/convergence.py           generates the convergence chart above
+python/convergence.py           generates the convergence chart
+python/vol_surface.py           generates the implied-vol surface above
 CMakeLists.txt                  build for lib, tests, benchmark, Python module
 ```
 
@@ -158,11 +193,16 @@ print(mc.price, mc.std_error)
 price = ope.black_scholes(inp).price
 iv = ope.implied_vol(inp, price)
 print(iv.vol, iv.iterations, iv.converged)
+
+# Merton jump-diffusion price (produces a volatility smile)
+jp = ope.JumpParams(lambda_=0.8, mu_j=-0.12, delta=0.20)
+print(ope.merton_jump_price(inp, jp))
 ```
 
-Regenerate the convergence chart, and run the benchmark, with:
+Regenerate the charts, and run the benchmark, with:
 
 ```bash
 PYTHONPATH=build python python/convergence.py
-./build/benchmark
+PYTHONPATH=build python python/vol_surface.py
+./build/bench
 ```
